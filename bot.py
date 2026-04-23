@@ -9,7 +9,7 @@ nonebot.init()
 driver = get_driver()
 driver.register_adapter(OneBotV11Adapter)
 
-# 自动加载 src/plugins 目录下的所有插件
+# 自动加载 ml_bot/plugins 目录下的所有插件
 nonebot.load_plugins("ml_bot/plugins")
 
 if __name__ == "__main__":
