@@ -10,6 +10,9 @@ from datetime import datetime, date, timedelta
 import pytz
 import hashlib
 import random
+from captcha.image import ImageCaptcha
+import string
+import io
 
 # 导入自定义模块
 from config import (
@@ -38,6 +41,26 @@ with app.app_context():
 
 # -------------------------- 工具函数（核心业务） --------------------------
 # 1. 检查文件后缀是否允许（头像上传）
+def generate_captcha():
+    # 验证码字符池：数字+大小写字母
+    captcha_chars = string.digits + string.ascii_letters
+    captcha_code = ''.join(random.choice(captcha_chars) for _ in range(4))
+    # 生成验证码图片
+    image = ImageCaptcha(width=120, height=40)  # 图片尺寸可按需调整
+    image_io = io.BytesIO()
+    image.write(captcha_code, image_io, format='PNG')
+    image_io.seek(0)
+    return captcha_code, image_io
+
+# 验证码图片接口（供前端调用）
+@app.route('/captcha')
+def captcha():
+    captcha_code, image_io = generate_captcha()
+    # 验证码存入session，用于后续校验
+    session['captcha_code'] = captcha_code.lower()  # 统一转小写，忽略大小写校验
+    return image_io.getvalue(), 200, {'Content-Type': 'image/png'}
+
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in config.ALLOWED_EXTENSIONS
 
@@ -291,27 +314,40 @@ def admin_required(f):
 # 根页面：登录验证（替换原口令验证为密码验证）
 @app.route("/", methods=["GET", "POST"])
 def index_verify():
-    # 已登录直接跳转（session存储user_id为主）
+    # 已登录直接跳转（保留原有逻辑）
     if session.get("verified") and session.get("user_id"):
         return redirect(url_for("main_index"))
 
     if request.method == "POST":
-        # ========== 1. 获取数据 ==========
+        # ========== 1. 获取数据（新增验证码输入项） ==========
         account = request.form.get("account", "").strip()
         password_md5 = request.form.get("password_md5", "").strip()
+        input_captcha = request.form.get("captcha", "").strip().lower()  # 统一转小写
 
-        # ========== 2. 基础校验 ==========
+        # ========== 2. 验证码校验（仅登录出错后触发） ==========
+        need_captcha = session.get("need_captcha", False)
+        if need_captcha:
+            # 校验验证码：空值/不一致均报错
+            session_captcha = session.get("captcha_code", "")
+            if not input_captcha or input_captcha != session_captcha:
+                flash("验证码错误", "danger")
+                session["need_captcha"] = True  # 保持需要验证码的状态
+                return render_template("index_verify.html", need_captcha=need_captcha)
+
+        # ========== 3. 基础校验（保留原有逻辑，新增need_captcha标记） ==========
         if not account or not password_md5:
             flash("账号/密码不能为空", "danger")
-            return render_template("index_verify.html")
+            session["need_captcha"] = True  # 出错后标记需要验证码
+            return render_template("index_verify.html", need_captcha=True)
 
-        # 防SQL注入
+        # 防SQL注入（保留原有逻辑，新增need_captcha标记）
         danger_chars = ["'", '"', ";", "OR", "AND", "\\"]
         if any(c in account.upper() for c in danger_chars):
             flash("输入包含非法字符", "danger")
-            return render_template("index_verify.html")
+            session["need_captcha"] = True  # 出错后标记需要验证码
+            return render_template("index_verify.html", need_captcha=True)
 
-        # ========== 3. 多条件查询用户（核心） ==========
+        # ========== 4. 多条件查询用户（核心逻辑完全保留） ==========
         user = None
         # 情况1：8位数字 → 查询 user_id（主键）
         if account.isdigit() and len(account) == 8:
@@ -323,15 +359,18 @@ def index_verify():
             if not user and account.isdigit():
                 user = User.query.filter(User.bd_qq == account, User.bd_qq != "").first()
 
-        # ========== 4. 密码验证 ==========
+        # ========== 5. 密码验证（保留原有逻辑，新增need_captcha标记） ==========
         if not user:
             flash("账号不存在", "danger")
-            return render_template("index_verify.html")
+            session["need_captcha"] = True  # 出错后标记需要验证码
+            return render_template("index_verify.html", need_captcha=True)
         if user.password != password_md5:
             flash("密码错误", "danger")
-            return render_template("index_verify.html")
+            session["need_captcha"] = True  # 出错后标记需要验证码
+            return render_template("index_verify.html", need_captcha=True)
 
-        # ========== 5. 登录成功（session存储user_id） ==========
+        # ========== 6. 登录成功（重置验证码标记，保留原有逻辑） ==========
+        session["need_captcha"] = False  # 登录成功后重置验证码要求
         session["verified"] = True
         session["user_id"] = user.user_id  # 核心存储user_id
         session["nickname"] = user.nickname  # 仅展示用
@@ -340,7 +379,8 @@ def index_verify():
         flash(f"欢迎回来，{user.nickname}", "success")
         return redirect(url_for("main_index"))
 
-    return render_template("index_verify.html")
+    # GET请求：渲染页面，传递是否需要验证码的标记
+    return render_template("index_verify.html", need_captcha=session.get("need_captcha", False))
 
 
 # 首页：
