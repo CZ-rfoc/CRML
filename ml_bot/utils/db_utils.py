@@ -6,7 +6,6 @@ import pytz
 # 北京时间时区
 BEIJING_TZ = pytz.timezone('Asia/Shanghai')
 
-# 段位信息（从你的 config.py 复制）
 DAN_ORDER = ["初段", "一段", "二段", "三段", "四段", "五段", "六段", "七段", "八段", "九段"]
 DAN_INFO = {
     "初段": (300.0, 0.0),
