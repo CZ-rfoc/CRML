@@ -16,8 +16,8 @@ driver = get_driver()
 global_config = driver.config
 
 # DeepSeek API 配置
-DEEPSEEK_API_KEY = "sk-9d65deb0588a4123b8758cdbd5beb80b"  # 替换为你的 API Key
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+DEEPSEEK_API_KEY = ""  # 替换为你的 API Key
+DEEPSEEK_API_URL = ""
 
 # 会话历史存储（每个群/私聊独立）
 conversations = defaultdict(list)
