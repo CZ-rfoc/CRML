@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>账号登录</title>
+    <title>账号登录 - CollegeRML</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
 </head>
@@ -20,7 +20,7 @@
 
         <form method="post" class="form-group">
             <label for="account">账号</label>
-            <input type="text" id="account" name="account" placeholder="用户名/8位ID/QQ号" required autocomplete="off">
+            <input type="text" id="account" name="account" placeholder="用户名/ID/绑定QQ" required autocomplete="off">
 
             <!-- 🔥 核心修复：删除密码框 name 属性，禁止明文提交 -->
             <label for="password">登录密码</label>
