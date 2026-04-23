@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>对局管理 - Melon League 西工大日麻常规赛</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 新增：选中条目高亮样式 */
+       .player-item {
+            cursor: pointer;
+            transition: background-color 0.2s;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        .player-item.selected {
+            background-color: #e5e7eb;
+            color: #111827;
+        }
+        .player-item:hover {
+            background-color: #f0f7ff;
+        }
+        .player-item.selected:hover {
+            background-color: #d1d5db;
+        }
+
+        /* 新增：确认弹窗样式（与页面风格统一） */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .modal-player-list {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .modal-player-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .modal-player-item:last-child {
+            border-bottom: none;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+        .modal-tip {
+            color: #dc3545;
+            text-align: center;
+            margin: 1rem 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>对局管理 - 录入分数</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <ul class="flash-messages flash-{{category}}">{{ msg }}</ul>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- 收集所有正在对局中的玩家ID（纯原生Jinja2语法） -->
+        {% set ongoing_user_ids = [] %}
+        {% for progress in ongoing_progress %}
+            {% for player in progress.get_players() %}
+                {% if player.user_id not in ongoing_user_ids %}
+                    {% set _ = ongoing_user_ids.append(player.user_id) %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+
+        <!-- 活跃玩家列表（勾选4人）- 自动隐藏正在对局中的玩家 -->
+        <form method="post" id="game-form" class="form-group" action="{{ url_for('game_manage') }}">
+            <input type="hidden" id="progress_id" name="progress_id" value="{{ current_progress.id if current_progress else '' }}">
+
+            <!-- 玩家勾选区域 -->
+            <div id="player-selection-area" {% if current_progress %}style="display:none;"{% endif %}>
+                <!-- 修复：rejectattr 替代 not in 过滤器 -->
+                <h3>当前活跃玩家（{{ active_users|rejectattr('user_id', 'in', ongoing_user_ids)|list|length }}人）</h3>
+                <div class="flex flex-col gap-2">
+                    {% for user in active_users %}
+                        <!-- 仅渲染未在对局中的玩家（标准if判断，语法正确） -->
+                        {% if user.user_id not in ongoing_user_ids %}
+                            <!-- 核心修改1：移除复选框，添加player-item类和data-user-id属性，作为可点击条目 -->
+                            <div class="list-item flex flex-start gap-2 player-item" data-user-id="{{ user.user_id }}">
+                                <label class="flex flex-start gap-2 align-items-center w-full">
+                                    <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar != 'default_icon.png' else url_for('static', filename='default_icon.png') }}" alt="{{ user.nickname }}" class="avatar-sm">
+                                    <span>{{ user.nickname }} - {{ user.dan }}{{ user.dan_pt }}</span>
+                                </label>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <div id="start-game-btn-area" style="margin-top:1.5rem; display:none;">
+                    <button type="button" id="start-game-btn" class="btn btn-primary">开始对局</button>
+                </div>
+            </div>
+
+            <!-- 录入素点 -->
+            <div id="score-input-area" style="margin-top:1.5rem; display:{% if current_progress %}block{% else %}none{% endif %};">
+                <h3>对局座次 & 素点录入（四人总和必须为100000）</h3>
+                <div id="score-list" class="flex-col gap-3">
+                    {% if current_progress %}
+                        {% for player in current_progress.get_players() %}
+                            {% set user = User.query.get(player.user_id) %}
+                            <div class="flex flex-start gap-2 align-items-center">
+                                <span style="font-weight: bold; width: 2rem; text-align: center;">{{ player.seat }}</span>
+                                <img src="{{ player.avatar }}" alt="{{ user.nickname }}" class="avatar-sm">
+                                <span>{{ user.nickname }}：</span>
+                                <input type="number" name="score_{{ player.user_id }}" id="score_{{ player.user_id }}"
+                                       placeholder="输入素点" min="-100000" max="200000" style="flex:1;"
+                                       oninput="calculateScoreTotal()">
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                <div style="margin-top:1rem; font-size:1.2rem; text-align:center;">
+                    素点总和：<b id="score-total">0</b>
+                </div>
+                <div class="flex gap-2" style="margin-top:1rem;">
+                    <button type="button" id="dissolve-game-btn" class="btn btn-danger" data-progress-id="{{ current_progress.id if current_progress else '' }}">解散对局</button>
+                    <!-- 修改：改为按钮触发弹窗，而非直接提交 -->
+                    <button type="button" class="btn btn-success" onclick="openConfirmModal()">确定录入并计算PT</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- 进行中的对局列表 -->
+        {% if ongoing_progress|length > 0 and not current_progress %}
+            <div class="ongoing-games" style="margin-top:2rem;">
+                <h3>正在进行中的对局</h3>
+                {% for progress in ongoing_progress %}
+                    <div class="list-item flex flex-col gap-2 p-2 border rounded mb-2"
+                         style="cursor: pointer; transition: background-color 0.2s;"
+                         onmouseover="this.style.backgroundColor='#f5f5f5'"
+                         onmouseout="this.style.backgroundColor='transparent'"
+                         onclick="window.location.href='{{ url_for('game_manage', progress_id=progress.id) }}'">
+                        <div class="flex gap-2">
+                            <span>创建时间：{{ progress.create_time.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-1">
+                            {% for player in progress.get_players() %}
+                                {% set user = User.query.get(player.user_id) %}
+                                <div class="flex align-items-center gap-1">
+                                    <img src="{{ player.avatar }}" alt="{{ user.nickname }}" class="avatar-sm">
+                                    <span>{{ player.seat }}:{{ user.nickname }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- 对局结果展示 -->
+        {% if game_result %}
+            <div class="game-result">
+                <h3>本局对局结果</h3>
+                {% for res in game_result %}
+                    <div class="list-item flex flex-start gap-2">
+                        <span>第{{ res.rank }}位 | </span>
+                        <img src="{{ url_for('static', filename='uploads/' + res.avatar) if res.avatar != 'default_icon.png' else url_for('static', filename='default_icon.png') }}" alt="{{ res.nickname }}" class="avatar-sm">
+                        <span>{{ res.nickname }} | </span>
+                        <span class="{% if res.dan in ['初段','一段','二段'] %}dan-black{% elif res.dan in ['三段','四段','五段','六段'] %}dan-purple{% else %}dan-gold{% endif %}">{{ res.dan }}</span>
+                        <span class="{% if res.dan_pt >=0 %}pt-red{% else %}pt-green{% endif %}">{{ res.dan_pt }}</span> |
+                        <span>本局PT：{{ res.pt }} | </span>
+
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <a href="{{ url_for('main_index') }}" class="btn btn-secondary" style="margin-top:1rem;">返回首页</a>
+    </div>
+
+    <!-- 新增：确认提交弹窗（页面底部） -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title">对局结果确认</div>
+            <div class="modal-player-list" id="modalPlayerList">
+                <!-- 动态渲染玩家排名 -->
+            </div>
+            <div class="modal-tip">是否确定录入？录入后不可修改！</div>
+            <div class="modal-buttons">
+                <button type="button" class="btn btn-danger" onclick="closeModal()">取消</button>
+                <button type="button" class="btn btn-success" onclick="submitScoreForm()">确认录入</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // 全局变量
+        let selectedPlayers = [];
+        const seatNames = ['东', '南', '西', '北'];
+
+        // 核心修改2：监听玩家条目点击事件（替代复选框change事件）
+        const playerItems = document.querySelectorAll(".player-item");
+        playerItems.forEach(item => {
+            item.addEventListener("click", function() {
+                // 切换选中状态
+                this.classList.toggle("selected");
+                // 更新选中玩家列表
+                updateSelectedPlayers();
+            });
+        });
+
+        // 核心修改3：重构选中玩家逻辑（从高亮条目中获取ID）
+        function updateSelectedPlayers() {
+            selectedPlayers = Array.from(document.querySelectorAll(".player-item.selected"))
+                .map(item => item.getAttribute("data-user-id"));
+
+            const startBtnArea = document.getElementById('start-game-btn-area');
+            startBtnArea.style.display = selectedPlayers.length === 4 ? 'block' : 'none';
+            calculateScoreTotal();
+        }
+
+        // 开始对局
+        document.getElementById('start-game-btn')?.addEventListener('click', async function() {
+            if (selectedPlayers.length !== 4) return;
+
+            try {
+                const res = await fetch("{{ url_for('create_game_progress') }}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ selected_user_ids: selectedPlayers })
+                });
+
+                const data = await res.json();
+                if (data.code === 200) {
+                    window.location.href = `${window.location.pathname}?progress_id=${data.data.progress_id}`;
+                } else {
+                    alert(data.msg);
+                }
+            } catch (e) {
+                alert("创建对局失败：" + e.message);
+            }
+        });
+
+        // 解散对局
+        document.getElementById('dissolve-game-btn')?.addEventListener('click', async function() {
+            // 保留原有逻辑（若有）
+        });
+
+        // 补充：素点总和计算（原有逻辑，若未实现则添加）
+        function calculateScoreTotal() {
+            let total = 0;
+            const scoreInputs = document.querySelectorAll("[id^='score_']");
+            scoreInputs.forEach(input => {
+                total += Number(input.value) || 0;
+            });
+            document.getElementById('score-total').textContent = total;
+        }
+
+        // ==================== 新增：弹窗相关函数 ====================
+        // 打开确认弹窗
+        function openConfirmModal() {
+    const playerData = [];
+    const scoreInputs = document.querySelectorAll("[id^='score_']");
+
+    // 验证：必须填写所有素点
+    for (let input of scoreInputs) {
+        const score = Number(input.value) || 0;
+        // 获取【座次】（东/南/西/北）
+        const seat = input.parentElement.querySelector('span:first-child').textContent.trim();
+        // 获取【玩家昵称】
+        const nickname = input.parentElement.querySelector('span:nth-child(3)').textContent.replace('：', '').trim();
+
+        if (input.value.trim() === '') {
+            alert('请填写所有玩家的素点！');
+            return;
+        }
+
+        // 存储座次、昵称、素点
+        playerData.push({ seat, nickname, score });
+    }
+
+    // 按素点 从高到低 排序
+    playerData.sort((a, b) => b.score - a.score);
+
+    // 渲染排名列表（显示：座次+昵称）
+    const listEl = document.getElementById('modalPlayerList');
+    let html = '';
+    playerData.forEach((player, index) => {
+        html += `
+            <div class="modal-player-item">
+                ${index+1}位：[${player.seat}] ${player.nickname} | ${player.score}
+            </div>
+        `;
+    });
+    listEl.innerHTML = html;
+
+    // 显示弹窗
+    document.getElementById('confirmModal').style.display = 'flex';
+}
+
+        // 关闭弹窗
+        function closeModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+        }
+
+        // 确认提交表单
+        function submitScoreForm() {
+            closeModal();
+            document.getElementById('game-form').submit();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ user.nickname }} - 设置中心</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.bootcdn.net/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <style>
+        /* 复用index风格，新增设置页样式 */
+        .settings-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background: #fff;
+            border-radius: 0.8rem;
+            box-shadow: 0 0 1rem rgba(0,0,0,0.1);
+        }
+        .avatar-center {
+            text-align: center;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        .avatar-center img {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #e9ecef;
+            cursor: pointer;
+        }
+        .info-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 1.1rem;
+        }
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            color: #6c757d;
+            font-weight: 500;
+        }
+        .info-value {
+            color: #343a40;
+        }
+        .edit-btn {
+            color: #007bff;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.3rem 0.8rem;
+            border: 1px solid #007bff;
+            border-radius: 0.4rem;
+            background: transparent;
+            transition: all 0.2s;
+        }
+        .edit-btn:hover {
+            background: #007bff;
+            color: #fff;
+        }
+        /* 浮窗样式 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 0.8rem;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 1.5rem rgba(0,0,0,0.2);
+        }
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            color: #343a40;
+        }
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #6c757d;
+            font-weight: 500;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid #ced4da;
+            border-radius: 0.4rem;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+        }
+        .modal-btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            justify-content: center;
+        }
+        .modal-btn {
+            padding: 0.8rem 2rem;
+            border-radius: 0.4rem;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        .btn-confirm {
+            background: #007bff;
+            color: #fff;
+        }
+        .btn-confirm:hover {
+            background: #0069d9;
+        }
+        .btn-cancel {
+            background: #6c757d;
+            color: #fff;
+        }
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+        .error-tip {
+            color: #dc3545;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+        /* 新增：头像上传提示样式 */
+        .avatar-tip {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(22, 93, 255, 0.9);
+            color: #fff;
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.8rem;
+            font-size: 1.1rem;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 0 1rem rgba(22, 93, 255, 0.3);
+        }
+        /* 新增：返回按钮样式 */
+        .back-btn {
+            display: inline-block;
+            margin: 2rem auto;
+            text-decoration: none;
+            padding: 0.8rem 2rem;
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 0.4rem;
+            font-size: 1rem;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .back-btn:hover {
+            background-color: #0069d9;
+        }
+        .back-btn-container {
+            text-align: center;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <ul class="flash-messages flash-{{category}}">{{ msg }}</ul>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="settings-container">
+            <!-- 头像上传表单 -->
+            <form id="avatar-form" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="update_avatar">
+                <!-- 居中头像 -->
+                <div class="avatar-center">
+                    <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar != 'default_icon.png' else url_for('static', filename='default_icon.png') }}"
+                         alt="用户头像" id="avatar-img" onclick="document.getElementById('avatar-input').click()">
+                    <input type="file" id="avatar-input" name="avatar" accept="image/png,image/jpg,image/jpeg" style="display:none;" onchange="document.getElementById('avatar-form').submit()">
+                </div>
+            </form>
+
+            <!-- 账号数字ID -->
+            <div class="info-item">
+                <span class="info-label">账号ID</span>
+                <span class="info-value">{{ user.user_id }}</span>
+            </div>
+
+            <!-- 昵称 -->
+            <div class="info-item">
+                <span class="info-label">昵称</span>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span class="info-value">{{ user.nickname }}</span>
+                    <button class="edit-btn" onclick="openModal('nickname-modal')">修改</button>
+                </div>
+            </div>
+
+            <!-- 账号组织 -->
+            <div class="info-item">
+                <span class="info-label">所属组织</span>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span class="info-value">{{ user.school }}</span>
+                    <button class="edit-btn" onclick="openModal('school-modal')">修改</button>
+                </div>
+            </div>
+
+            <div class="info-item">
+                <span class="info-label">绑定QQ</span>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span class="info-value">{{ user.bd_qq or "未绑定" }}</span>
+                    <button class="edit-btn" onclick="openModal('qq-modal')">修改</button>
+                </div>
+            </div>
+
+            <!-- 修改密码 -->
+            <div class="info-item">
+                <span class="info-label">密码管理</span>
+                <button class="edit-btn" onclick="openModal('password-modal')">修改</button>
+            </div>
+        </div>
+
+        <!-- 新增：返回首页按钮 -->
+        <div class="back-btn-container">
+            <a href="{{ url_for('main_index') }}" class="back-btn">返回首页</a>
+        </div>
+    </div>
+
+    <!-- 头像上传提示框 -->
+    <div class="avatar-tip" id="avatar-tip">头像上传成功！</div>
+
+    <!-- 昵称修改浮窗 -->
+    <div class="modal" id="nickname-modal">
+        <div class="modal-content">
+            <div class="modal-title">修改昵称</div>
+            <form id="nickname-form" method="post" action="{{ url_for('settings') }}">
+                <input type="hidden" name="action" value="update_nickname">
+                <div class="form-group">
+                    <label class="form-label">新昵称</label>
+                    <input type="text" class="form-input" id="new-nickname" name="new_nickname"
+                           placeholder="请输入新昵称" maxlength="10" oninput="checkNickname()">
+                    <div class="error-tip" id="nickname-error">昵称不符合规则或已存在</div>
+                </div>
+                <div class="modal-btn-group">
+                    <button type="button" class="modal-btn btn-cancel" onclick="closeModal('nickname-modal')">取消</button>
+                    <button type="submit" class="modal-btn btn-confirm" id="nickname-submit">确认修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 组织修改浮窗 -->
+    <div class="modal" id="school-modal">
+        <div class="modal-content">
+            <div class="modal-title">修改所属组织</div>
+            <form id="school-form" method="post" action="{{ url_for('settings') }}">
+                <input type="hidden" name="action" value="update_school">
+                <div class="form-group">
+                    <label class="form-label">新邀请码</label>
+                    <input type="text" class="form-input" id="invite-code" name="new_invite_code"
+                           placeholder="请输入组织邀请码" oninput="checkInviteCode()">
+                    <div class="error-tip" id="school-error">邀请码无效</div>
+                </div>
+                <div class="modal-btn-group">
+                    <button type="button" class="modal-btn btn-cancel" onclick="closeModal('school-modal')">取消</button>
+                    <button type="submit" class="modal-btn btn-confirm" id="school-submit">确认修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+        <!-- QQ绑定浮窗 -->
+    <div class="modal" id="qq-modal">
+        <div class="modal-content">
+            <div class="modal-title">绑定/修改QQ号</div>
+            <form id="qq-form" method="post" action="{{ url_for('settings') }}">
+                <input type="hidden" name="action" value="update_qq">
+                <div class="form-group">
+                    <label class="form-label">QQ号码</label>
+                    <input type="text" class="form-input" id="new-qq" name="new_qq"
+                           placeholder="请输入QQ号码" oninput="checkQQ()">
+                    <div class="error-tip" id="qq-error">QQ号格式不正确（5-13位纯数字）</div>
+                </div>
+                <div class="modal-btn-group">
+                    <button type="button" class="modal-btn btn-cancel" onclick="closeModal('qq-modal')">取消</button>
+                    <button type="submit" class="modal-btn btn-confirm" id="qq-submit" disabled>确认修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 密码修改浮窗 -->
+    <div class="modal" id="password-modal">
+        <div class="modal-content">
+            <div class="modal-title">修改密码</div>
+            <form id="password-form" method="post" action="{{ url_for('settings') }}" onsubmit="return submitPasswordForm()">
+                <input type="hidden" name="action" value="update_password">
+                <input type="hidden" id="old-password-md5" name="old_password_md5">
+                <input type="hidden" id="new-password-md5" name="new_password_md5">
+
+                <div class="form-group">
+                    <label class="form-label">原密码</label>
+                    <input type="password" class="form-input" id="old-password"
+                           placeholder="请输入原密码" onblur="hashOldPwd()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">新密码</label>
+                    <input type="password" class="form-input" id="new-password"
+                           placeholder="请输入新密码（6-20位）" oninput="checkNewPwd()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">确认新密码</label>
+                    <input type="password" class="form-input" id="confirm-password"
+                           placeholder="请再次输入新密码" oninput="checkNewPwd()">
+                </div>
+                <div class="modal-btn-group">
+                    <button type="button" class="modal-btn btn-cancel" onclick="closeModal('password-modal')">取消</button>
+                    <button type="submit" class="modal-btn btn-confirm" id="password-submit">确认修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <small style="color: #999; display: block; margin-top: 12px;">
+    本网页由西北工业大学 长安天和街狗庄开发，为高校与日麻组织无偿提供对局记录与数据统计服务。反馈Bug，新高校/组织申请加入请联系：红厂长 QQ：2795507649<br> <br>
+    严禁将本网页用于赌博等违法用途，严禁使用涉政，色情的昵称与头像。违反规定者，西北工业大学 长安天和街狗庄保留追究责任的权利。
+    </small>
+    <script>
+        // 头像上传提示显示/隐藏
+        function showAvatarTip() {
+            const tip = document.getElementById('avatar-tip');
+            tip.style.display = 'block';
+            setTimeout(() => {
+                tip.style.display = 'none';
+            }, 2000);
+        }
+
+        // 浮窗操作
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // 昵称校验
+        function checkNickname() {
+            const nickname = document.getElementById('new-nickname').value;
+            const errorTip = document.getElementById('nickname-error');
+            const submitBtn = document.getElementById('nickname-submit');
+
+            // 简单校验（和后端保持一致）
+            if (!nickname || nickname.length > 10) {
+                errorTip.style.display = 'block';
+                submitBtn.disabled = true;
+            } else {
+                errorTip.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        }
+        function checkQQ() {
+            const input = document.getElementById('new-qq');
+            const error = document.getElementById('qq-error');
+            const val = input.value.trim();
+            const isValid = /^\d{5,13}$/.test(val); // 5-13位纯数字
+            error.style.display = isValid ? 'none' : 'block';
+            document.getElementById('qq-submit').disabled = !isValid;
+        }
+        // 邀请码校验
+        function checkInviteCode() {
+            const code = document.getElementById('invite-code').value;
+            const errorTip = document.getElementById('school-error');
+            const submitBtn = document.getElementById('school-submit');
+
+            if (!code) {
+                errorTip.style.display = 'block';
+                submitBtn.disabled = true;
+            } else {
+                errorTip.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        }
+
+        // 密码哈希处理
+        function hashOldPwd() {
+            const oldPwd = document.getElementById('old-password').value;
+            if (oldPwd) {
+                document.getElementById('old-password-md5').value = CryptoJS.MD5(oldPwd).toString();
+            }
+        }
+
+        function checkNewPwd() {
+            const newPwd = document.getElementById('new-password').value;
+            const confirmPwd = document.getElementById('confirm-password').value;
+            const submitBtn = document.getElementById('password-submit');
+
+            if (newPwd.length < 6 || newPwd.length > 20 || newPwd !== confirmPwd) {
+                submitBtn.disabled = true;
+            } else {
+                submitBtn.disabled = false;
+            }
+        }
+
+        function submitPasswordForm() {
+            const newPwd = document.getElementById('new-password').value;
+            document.getElementById('new-password-md5').value = CryptoJS.MD5(newPwd).toString();
+            return true;
+        }
+
+        // 监听头像上传表单提交成功后的提示
+        window.onload = function() {
+            {% if '头像' in get_flashed_messages()|join %}
+                showAvatarTip();
+            {% endif %}
+        }
+
+        // 点击空白处关闭浮窗
+        window.onclick = function(event) {
+            const modals = document.getElementsByClassName('modal');
+            for (let i = 0; i < modals.length; i++) {
+                if (event.target === modals[i]) {
+                    modals[i].style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>账号登录</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>账号登录</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <ul class="flash-messages flash-{{category}}">{{ msg }}</ul>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="post" class="form-group">
+            <label for="account">账号</label>
+            <input type="text" id="account" name="account" placeholder="用户名/8位ID/QQ号" required autocomplete="off">
+
+            <!-- 🔥 核心修复：删除密码框 name 属性，禁止明文提交 -->
+            <label for="password">登录密码</label>
+            <input type="password" id="password" placeholder="请输入密码" required>
+
+            <!-- 固定隐藏域：存储MD5 -->
+            <input type="hidden" name="password_md5" id="password_md5">
+
+            <!-- 🔥 核心修复：点击事件绑定JS，保证赋值优先 -->
+            <button type="submit" class="btn" onclick="return loginCheck()">登录</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1rem; font-size: 1rem;">
+            没有账号？<a href="{{ url_for('reg') }}" style="color: #165DFF; text-decoration: none;">立即注册</a>
+        </div>
+    </div>
+    <small style="color: #999; display: block; margin-top: 12px;">
+    本网页由西北工业大学-长安天和街狗庄开发，为高校与日麻组织无偿提供对局记录与数据统计服务。反馈Bug，新高校/组织申请加入请联系：红厂长 QQ：2795507649<br> <br>
+    严禁将本网页用于赌博等违法用途，严禁使用涉政，色情的昵称与头像。违反规定者，西北工业大学 长安天和街狗庄保留追究责任的权利。
+    </small>
+    <script>
+        function loginCheck() {
+            const account = document.getElementById('account').value.trim();
+            const pwd = document.getElementById('password').value;
+            const md5Field = document.getElementById('password_md5');
+
+            // 防SQL注入
+            const injectReg = /['";\\\-ORAND]/gi;
+            if(injectReg.test(account)) {
+                alert("输入包含非法字符！");
+                return false;
+            }
+
+            // 密码非空校验
+            if(!pwd) {
+                alert("密码不能为空！");
+                return false;
+            }
+
+            // 🔥 强制生成MD5并赋值
+            md5Field.value = CryptoJS.MD5(pwd).toString();
+
+            // 调试：控制台查看
+            console.log("登录MD5：", md5Field.value);
+            return true;
+        }
+    </script>
+</body>
+</html>

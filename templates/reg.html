@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>用户注册</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>用户注册</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <ul class="flash-messages flash-{{category}}">{{ msg }}</ul>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="post" enctype="multipart/form-data" class="form-group">
+            <label for="nickname">用户昵称</label>
+            <input type="text" id="nickname" name="nickname" placeholder="请输入昵称" required autocomplete="off">
+
+            <label for="invite_code">邀请码</label>
+            <input type="text" id="invite_code" name="invite_code" placeholder="请输入学校邀请码" required autocomplete="off">
+
+            <label for="pwd1">设置密码</label>
+            <input type="password" id="pwd1" placeholder="请输入密码" required>
+
+            <label for="pwd2">确认密码</label>
+            <input type="password" id="pwd2" placeholder="请再次输入密码" required>
+
+            <!-- QQ号输入框：后台自动同步头像，无预览 -->
+            <label for="bd_qq">绑定QQ号（可选，唯一绑定）</label>
+            <input type="text" id="bd_qq" name="bd_qq" placeholder="请输入QQ号" autocomplete="off" oninput="syncQQAvatar()">
+
+            <label for="avatar">上传头像（可选，优先级高于QQ头像）</label>
+            <input type="file" id="avatar" name="avatar" accept="image/png,image/jpg,image/jpeg">
+
+            <!-- 隐藏域：存储QQ头像URL（后台同步用，不显示） -->
+            <input type="hidden" id="qq_avatar_url" name="qq_avatar_url">
+            <input type="hidden" name="password_md5" id="password_md5">
+
+            <button type="submit" class="btn" onclick="return checkForm()">完成注册</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1rem; font-size: 1rem;">
+            已有账号？<a href="{{ url_for('index_verify') }}" style="color: #165DFF; text-decoration: none;">立即登录</a>
+        </div>
+    </div>
+
+    <script>
+        // 1. 注册表单校验
+        function checkForm() {
+            const nickname = document.getElementById('nickname').value.trim();
+            const pwd1 = document.getElementById('pwd1').value;
+            const pwd2 = document.getElementById('pwd2').value;
+            const bd_qq = document.getElementById('bd_qq').value.trim();
+            const md5Field = document.getElementById('password_md5');
+
+            // 用户名校验
+            if(!nickname) { alert("用户名不能为空！"); return false; }
+            if(nickname.length > 10) { alert("用户名最长10个中文字符！"); return false; }
+            if(/^\d{8}$/.test(nickname)) { alert("禁止使用8位纯数字用户名！"); return false; }
+            const injectReg = /['";\\\-ORAND]/gi;
+            if(injectReg.test(nickname)) { alert("用户名包含非法字符！"); return false; }
+
+            // 密码校验
+            if(!pwd1 || !pwd2) { alert("密码不能为空！"); return false; }
+            if(pwd1 !== pwd2) { alert("两次密码不一致！"); return false; }
+
+            // QQ号格式校验
+            if(bd_qq && !/^\d{5,13}$/.test(bd_qq)) {
+                alert("请输入正确的QQ号！");
+                return false;
+            }
+
+            // MD5加密
+            md5Field.value = CryptoJS.MD5(pwd1).toString();
+            console.log("注册MD5:", md5Field.value);
+            return true;
+        }
+
+        // 2. 后台同步QQ头像（无预览、不显示任何界面）
+        function syncQQAvatar() {
+            const qq = document.getElementById('bd_qq').value.trim();
+            const avatarUrlField = document.getElementById('qq_avatar_url');
+
+            // 合法QQ号则后台获取头像URL
+            if(qq && /^\d{5,13}$/.test(qq)) {
+                // 官方QQ头像接口，后台赋值，不展示
+                avatarUrlField.value = `https://q1.qlogo.cn/g?b=qq&nk=${qq}&s=100`;
+            } else {
+                avatarUrlField.value = "";
+            }
+        }
+    </script>
+</body>
+</html>

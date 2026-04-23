@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ user.nickname }} - 个人主页</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- ECharts CDN（移动端适配） -->
+    <script src="/static/js/echarts.js"></script>
+    <style>
+
+        .avatar-tip {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(22, 93, 255, 0.9);
+            color: #fff;
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.8rem;
+            font-size: 1.1rem;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 0 1rem rgba(22, 93, 255, 0.3);
+        }
+        /* 段位颜色样式 */
+        .dan-初段 { color: #6c757d; } /* 灰色 */
+        .dan-一段 { color: #343a40; } /* 深灰 */
+        .dan-二段 { color: #28a745; } /* 绿色 */
+        .dan-三段 { color: #17a2b8; } /* 青色 */
+        .dan-四段 { color: #007bff; } /* 蓝色 */
+        .dan-五段 { color: #6610f2; } /* 紫色 */
+        .dan-六段 { color: #e83e8c; } /* 粉色 */
+        .dan-七段 { color: #fd7e14; } /* 橙色 */
+        .dan-八段 { color: #dc3545; } /* 红色 */
+        .dan-九段 { color: #ffc107; } /* 金色 */
+        /* 段位文字视觉增强 */
+        .dan-text {
+            font-weight: 600;
+            font-size: 1.05em;
+        }
+        /* 对局记录详情样式 */
+        .game-records-container {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 0.5rem;
+            display: none;
+        }
+        .game-record-item {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .game-record-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .game-time {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #007bff;
+        }
+        .player-item {
+            display: inline-block;
+            margin-right: 1rem;
+            padding: 0.3rem 0.6rem;
+            background: #e9ecef;
+            border-radius: 0.3rem;
+            margin-bottom: 0.3rem;
+        }
+        /* 名次颜色类 */
+        .rank-1 { color: #FFD700 !important; } /* 金色 */
+        .rank-2 { color: #C0C0C0 !important; } /* 银色 */
+        .rank-3 { color: #CD7F32 !important; } /* 铜色 */
+        .rank-4 { color: #28a745 !important; } /* 绿色 */
+        /* PT颜色类 */
+        .pt-positive { color: #dc3545 !important; } /* 红色（正数） */
+        .pt-negative { color: #17a2b8 !important; } /* 天蓝色（负数） */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-warning {
+            background: #fff;
+            padding: 1.5rem;
+            border-radius: 0.8rem;
+            max-width: 90%;
+            width: 400px;
+            box-shadow: 0 0 1rem rgba(0, 0, 0, 0.3);
+        }
+        .modal-warning p {
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            color: #333;
+            margin: 0 0 1.5rem 0;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+        .modal-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.4rem;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .modal-btn.confirm {
+            background: #007bff;
+            color: #fff;
+        }
+        .modal-btn.cancel {
+            background: #6c757d;
+            color: #fff;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Melon League个人主页 <a href="{{ url_for('settings') }}" style="color: #007bff; text-decoration: none; font-size: 1rem; margin-left: 1rem;">设置</a></h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <ul class="flash-messages flash-{{category}}">{{ msg }}</ul>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- 顶部：头像+个人信息 -->
+        <div class="flex gap-2" style="margin-bottom:1.5rem;">
+            <!-- 头像上传表单 -->
+            <form id="avatar-form" method="post" enctype="multipart/form-data">
+                <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar != 'default_icon.png' else url_for('static', filename='default_icon.png') }}"
+                     alt="头像" id="avatar-img" class="avatar">
+                <input type="file" id="avatar-input" name="avatar" accept="image/png,image/jpg,image/jpeg" style="display:none;">
+            </form>
+            <!-- 个人信息 -->
+            <div class="flex-col flex-start">
+                <h3>{{ user.nickname }}</h3>
+                <p>组织：<b> {{ user.school }}</b> </p>
+                <p>
+                    段位：<span class="dan-text dan-{{ user.dan }}">
+                        {{ user.dan }}
+                    </span>
+                    <span class="{% if user.dan_pt >=0 %}pt-red{% else %}pt-green{% endif %}">
+                        {{ user.dan_pt if user.dan_pt >=0 else user.dan_pt | abs }}
+                    </span>
+                </p>
+                <p>升段条件：<b>{{ user.promote_cond }}</b> pt</p>
+                <p>活动状态：<b style="color:{{ '#28a745' if user.active else '#dc3545' }}">{{ '开启' if user.active else '关闭' }}</b></p>
+            </div>
+        </div>
+
+        <!-- 中间：活动状态切换按钮 -->
+        <form method="post">
+            <button type="submit" class="btn {% if user.active %}btn-danger{% else %}btn-success{% endif %}">
+                Let's roll → {{ '取消准备' if user.active else '准备对局' }}
+            </button>
+        </form>
+
+        <div style="display: flex; gap: 12px; margin: 1rem 0;">
+            <a href="{{ url_for('game_manage') }}" class="btn">校内对局</a>
+            <a href="javascript:void(0);" id="global-game-link" class="btn">跨校对局</a>
+        </div>
+        <div style="display: flex; gap: 12px; margin: 1rem 0;">
+            <a href="{{ url_for('monthly_report') }}" class="btn">本月月报</a>
+            <a href="{{ url_for('ranklist') }}" class="btn">段位排名</a>
+        </div>
+
+        <!-- 下半部分：统计信息+图表 -->
+        <h2>数据统计</h2>
+        <div class="flex flex-wrap gap-1" style="margin:1rem 0;">
+            <div class="flex-col flex-start" style="width:48%; background:#f8f9fa; padding:0.5rem; border-radius:0.5rem;">
+                <span>总对局数</span>
+                <b style="font-size:1.5rem;">{{ stats.total_games }}</b>
+            </div>
+            <div class="flex-col flex-start" style="width:48%; background:#f8f9fa; padding:0.5rem; border-radius:0.5rem;">
+                <span>平均得点</span>
+                <b style="font-size:1.5rem;">{{ stats.avg_score }}</b>
+            </div>
+            <div class="flex-col flex-start" style="width:48%; background:#f8f9fa; padding:0.5rem; border-radius:0.5rem;">
+                <span>平均顺位</span>
+                <b style="font-size:1.5rem;">{{ stats.avg_rank }}</b>
+            </div>
+            <div class="flex-col flex-start" style="width:48%; background:#f8f9fa; padding:0.5rem; border-radius:0.5rem;">
+                <span>局净PT</span>
+                <b style="font-size:1.5rem;">{{ stats.avg_pt }}</b>
+            </div>
+        </div>
+
+        <!-- 名次概率饼图 -->
+        <div class="chart-box" id="rank-chart" style="width: 100%; height: 400px;"></div>
+        <script type="text/javascript">
+            // 初始化饼图
+            var rankChart = echarts.init(document.getElementById('rank-chart'));
+            var rankRate = {{ stats.rank_rate | tojson }};
+            var pieOption = {
+                title: { text: '名次概率分布', left: 'center' },
+                tooltip: { trigger: 'item' },
+                legend: {
+                    orient: 'horizontal',
+                    bottom: 0,
+                    data: ['一位', '二位', '三位', '四位'],
+                    textStyle: { color: '#333' }
+                },
+                series: [{
+                    name: '名次',
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    avoidLabelOverlap: false,
+                    label: { show: false }, // 隐藏饼图上的文字
+                    labelLine: { show: false }, // 隐藏引导线
+                    color: ['#FFD700', '#C0C0C0', '#CD7F32', '#28a745'], // 金、银、铜、绿
+                    data: [
+                        {value: rankRate[0], name: '一位'},
+                        {value: rankRate[1], name: '二位'},
+                        {value: rankRate[2], name: '三位'},
+                        {value: rankRate[3], name: '四位'}
+                    ]
+                }]
+            };
+            rankChart.setOption(pieOption);
+            window.addEventListener('resize', function() {
+                rankChart.resize();
+            });
+        </script>
+
+        <!-- 最近10战名次折线图 -->
+        <div class="chart-box" id="trend-chart" style="width: 100%; height: 400px;"></div>
+        <script type="text/javascript">
+            // 初始化折线图
+            var trendChart = echarts.init(document.getElementById('trend-chart'));
+            var last10Ranks = {{ stats.last_10_ranks | tojson }};
+            // 处理每个点的颜色
+            var lineData = last10Ranks.map(function(rank) {
+                var color = '#000';
+                if (rank === 1) color = '#FFD700'; // 金色
+                else if (rank === 2) color = '#C0C0C0'; // 银色
+                else if (rank === 3) color = '#CD7F32'; // 铜色
+                else if (rank === 4) color = '#28a745'; // 绿色
+                return {
+                    value: rank,
+                    itemStyle: { color: color }
+                };
+            });
+            // X轴标签
+            var xAxisData = last10Ranks.map(function(_, idx) {
+                return '第' + (idx + 1) + '战';
+            });
+            var lineOption = {
+                title: { text: '最近10战名次', left: 'center' },
+                tooltip: { trigger: 'item' },
+                xAxis: {
+                    type: 'category',
+                    data: xAxisData
+                },
+                yAxis: {
+                    type: 'value',
+                    min: 1,
+                    max: 4,
+                    interval: 1,
+                    inverse: true // 反转Y轴，1位在顶部
+                },
+                series: [{
+                    name: '名次',
+                    type: 'line',
+                    symbol: 'circle', // 圆点样式
+                    symbolSize: 10, // 点大小
+                    data: lineData,
+                    lineStyle: { color: '#999' } // 折线灰色，突出点颜色
+                }]
+            };
+            trendChart.setOption(lineOption);
+            window.addEventListener('resize', function() {
+                trendChart.resize();
+            });
+        </script>
+
+        <!-- 对局记录详情按钮 -->
+        <button id="show-records-btn" class="btn btn-primary" style="margin: 1.5rem 0;">对局记录详情</button>
+
+        <!-- 对局记录详情区域 -->
+        <div class="game-records-container" id="game-records">
+            {% if game_records %}
+                {% for record in game_records %}
+                    <div class="game-record-item">
+                        <div class="game-time">{{ record.game_time }}</div>
+                        <div class="players-list">
+                            {# 按分数降序排序玩家 #}
+                            {% set sorted_players = record.players|sort(attribute='score', reverse=true) %}
+                            {% for idx, player in sorted_players|enumerate %}
+                                {# 按排序后的索引设置名次颜色：0=金，1=银，2=铜，3=绿 #}
+                                {% set rank_class = 'rank-' + (idx + 1)|string %}
+                                {# PT颜色：正数红，负数天蓝，0默认 #}
+                                {% set pt_class = 'pt-positive' if player.pt > 0 else 'pt-negative' if player.pt < 0 else '' %}
+                                <div class="player-item">
+                                    <span class="{{ rank_class }}"><b>{{ player.nickname }}</b></span>
+                                    {{ player.score }}
+                                    <span class="{{ pt_class }}">{{ player.pt }}pt</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align: center; color: #6c757d;">暂无对局记录</p>
+            {% endif %}
+        </div>
+
+        <!-- 底部按钮 -->
+        <a href="{{ url_for('logout') }}" class="btn btn-danger">退出登录</a>
+    </div>
+	<div class="modal-overlay" id="global-game-modal">
+        <div class="modal-warning">
+            <p>目前你浏览的是本系统所有活跃玩家，请勿随意在此页面勾选玩家开始对局与录入分数，请仔细核对参与者昵称与所属组织。胡乱填写数据将会影响您和您所属组织的声誉。</p>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" id="modal-cancel">取消</button>
+                <button class="modal-btn confirm" id="modal-confirm">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增：浮窗交互逻辑 -->
+    <script type="text/javascript">
+        // 跨校对局警告浮窗逻辑
+        const modalOverlay = document.getElementById('global-game-modal');
+        const globalGameLink = document.getElementById('global-game-link');
+        const modalCancel = document.getElementById('modal-cancel');
+        const modalConfirm = document.getElementById('modal-confirm');
+        // 获取跨校对局真实跳转地址
+        const globalGameUrl = "{{ url_for('game_manage_global') }}";
+
+        // 点击跨校对局链接显示浮窗
+        globalGameLink.addEventListener('click', function() {
+            modalOverlay.style.display = 'flex';
+        });
+
+        // 取消按钮：关闭浮窗，不跳转
+        modalCancel.addEventListener('click', function() {
+            modalOverlay.style.display = 'none';
+        });
+
+        // 确认按钮：关闭浮窗并跳转到跨校对局页面
+        modalConfirm.addEventListener('click', function() {
+            modalOverlay.style.display = 'none';
+            window.location.href = globalGameUrl;
+        });
+
+        // 点击遮罩层空白处关闭浮窗
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === modalOverlay) {
+                modalOverlay.style.display = 'none';
+            }
+        });
+    </script>
+
+    <!-- 头像更换成功前端悬浮提示框 -->
+    <div class="avatar-tip" id="avatar-tip">头像更换成功 ✔️</div>
+
+    <small style="color: #999; display: block; margin-top: 12px;">
+    本网页由西北工业大学-长安天和街狗庄开发，为高校与日麻组织无偿提供对局记录与数据统计服务。反馈Bug，新高校/组织申请加入请联系：红厂长 QQ：2795507649<br> <br>
+    严禁将本网页用于赌博等违法用途，严禁使用涉政，色情的昵称与头像。违反规定者，西北工业大学 长安天和街狗庄保留追究责任的权利。
+    </small>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <!-- 控制对局记录显示/隐藏的JS -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const showBtn = document.getElementById('show-records-btn');
+            const recordsContainer = document.getElementById('game-records');
+
+            showBtn.addEventListener('click', function() {
+                if (recordsContainer.style.display === 'none' || recordsContainer.style.display === '') {
+                    recordsContainer.style.display = 'block';
+                    showBtn.textContent = '收起对局记录';
+                } else {
+                    recordsContainer.style.display = 'none';
+                    showBtn.textContent = '对局记录详情';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

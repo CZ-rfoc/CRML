@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>管理端 - 口令验证</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>麻将比赛网 - 管理端</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <ul class="flash-messages flash-{{category}}">{{ msg }}</ul>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="post" class="form-group">
+            <label for="password">请输入管理端口令</label>
+            <input type="password" id="password" name="password" placeholder="输入管理端专属口令" required>
+            <button type="submit" class="btn btn-danger">进入管理端</button>
+        </form>
+        <a href="{{ url_for('main_index') }}" class="btn btn-secondary" style="margin-top:1rem;">返回首页</a>
+    </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

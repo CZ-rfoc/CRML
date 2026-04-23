@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MelonLeague - 段位排名</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 基础容器适配 */
+        .filter-group {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .filter-btn {
+            padding: 0.5rem 1.5rem;
+            border: 1px solid #007bff;
+            border-radius: 8px;
+            background-color: #fff;
+            color: #007bff;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+        }
+        .filter-btn.active {
+            background-color: #007bff;
+            color: #fff;
+        }
+        .filter-btn:hover {
+            opacity: 0.9;
+        }
+        .rank-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        /* 玩家列表容器 */
+        .player-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        /* 单个玩家行样式 */
+        .player-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            /* 移动端适配：弹性换行 */
+            flex-wrap: wrap;
+            position: relative; /* 为菜单定位提供父容器 */
+        }
+        /* 偶数行背景色保留原有风格 */
+        .player-item:nth-child(even) {
+            background-color: #ffffff;
+        }
+        /* 排名样式 */
+        .rank-num {
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+            background-color: #f5f5f5;
+            border-radius: 50%;
+            margin-right: 1rem;
+            /* 移动端最小尺寸限制 */
+            flex-shrink: 0;
+        }
+        /* 第一名金色 */
+        .rank-num.rank-1 {
+            background-color: #FFD700;
+        }
+        /* 第二名银色 */
+        .rank-num.rank-2 {
+            background-color: #C0C0C0;
+        }
+        /* 第三名铜色 */
+        .rank-num.rank-3 {
+            background-color: #CD7F32;
+        }
+        /* 头像容器：新增相对定位+点击光标 */
+        .avatar-container {
+            position: relative;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        /* 头像样式（保留原有风格并优化） */
+        .avatar-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid #007bff;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+        /* 玩家信息容器（昵称+段位+PT） */
+        .player-info {
+            flex: 1;
+            min-width: 200px; /* 移动端最小宽度，避免挤压 */
+        }
+        /* 昵称样式 */
+        .player-nickname {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.3rem;
+        }
+        /* 段位+PT组合样式 */
+        .player-rank {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95em;
+        }
+        /* 段位颜色样式（保留原有） */
+        .dan-初段 { color: #6c757d; }
+        .dan-一段 { color: #343a40; }
+        .dan-二段 { color: #28a745; }
+        .dan-三段 { color: #17a2b8; }
+        .dan-四段 { color: #007bff; }
+        .dan-五段 { color: #6610f2; }
+        .dan-六段 { color: #e83e8c; }
+        .dan-七段 { color: #fd7e14; }
+        .dan-八段 { color: #dc3545; }
+        .dan-九段 { color: #ffc107; }
+        /* 段位文字样式（保留原有） */
+        .dan-text {
+            font-weight: 600;
+            font-size: 1.05em;
+        }
+        /* PT值样式 */
+        .pt-text {
+            color: #666;
+        }
+        /* 返回按钮样式 */
+        .back-btn {
+            display: inline-block;
+            margin-top: 2rem;
+            text-decoration: none;
+        }
+        /* 空数据样式 */
+        .empty-tip {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+            font-size: 1.1em;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        /* 移动端适配 */
+        @media (max-width: 480px) {
+            .rank-container {
+                margin: 1rem auto;
+                padding: 0 0.5rem;
+            }
+            .rank-num {
+                width: 35px;
+                height: 35px;
+                line-height: 35px;
+                font-size: 1em;
+                margin-right: 0.8rem;
+            }
+            .rank-num.rank-1,
+            .rank-num.rank-2,
+            .rank-num.rank-3 {
+                width: 35px;
+                height: 35px;
+                line-height: 35px;
+            }
+            .avatar-img {
+                width: 45px;
+                height: 45px;
+                margin-right: 0.8rem;
+            }
+            .player-item {
+                padding: 0.8rem;
+            }
+            .player-nickname {
+                font-size: 1em;
+            }
+            .player-rank {
+                font-size: 0.9em;
+            }
+        }
+        /* 头像菜单样式 */
+        .avatar-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 0.5rem;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 200px;
+        }
+        .avatar-menu.show {
+            display: block;
+        }
+        .menu-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+        .menu-label {
+            font-weight: 500;
+            color: #333;
+        }
+        .menu-value {
+            color: #666;
+        }
+        /* 新增：最近10战顺位数字颜色样式 */
+        .rank-num-1 { color: #FFD700; font-weight: 600; } /* 金色 */
+        .rank-num-2 { color: #C0C0C0; font-weight: 600; } /* 银色 */
+        .rank-num-3 { color: #CD7F32; font-weight: 600; } /* 铜色 */
+        .rank-num-4 { color: #28a745; font-weight: 600; } /* 绿色 */
+        .player-nickname {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          width: 100%;
+        }
+        .school-tag {
+          font-size: 0.9em;
+          color: #666;
+          font-weight: normal;
+          margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="rank-container">
+        <h1>Melon League 段位排名</h1>
+        <div class="filter-group">
+            <a href="{{ url_for('ranklist', filter='school') }}">
+                <button class="filter-btn {% if current_filter == 'school' %}active{% endif %}">本校</button>
+            </a>
+            <a href="{{ url_for('ranklist', filter='all') }}">
+                <button class="filter-btn {% if current_filter == 'all' %}active{% endif %}">全系统</button>
+            </a>
+        </div>
+        <!-- 玩家列表 -->
+        <div class="player-list">
+            {% for item in rank_list %}
+            <div class="player-item">
+                <!-- 排名数字 -->
+                <div class="rank-num
+                    {% if loop.index == 1 %}rank-1{% endif %}
+                    {% if loop.index == 2 %}rank-2{% endif %}
+                    {% if loop.index == 3 %}rank-3{% endif %}">
+                    {{ loop.index }}
+                </div>
+                <!-- 头像容器（带统计菜单） -->
+                <div class="avatar-container" onclick="toggleMenu('menu-{{ loop.index }}')">
+                    <img src="{{ url_for('static', filename='uploads/' + item.user.avatar) }}" class="avatar-img" alt="{{ item.user.nickname }}">
+                    <!-- 统计菜单 -->
+                    <div id="menu-{{ loop.index }}" class="avatar-menu">
+                        <div class="menu-item">
+                            <span class="menu-label">总对局数：</span>
+                            <span class="menu-value">{{ item.stats.total_games }}</span>
+                        </div>
+                        <div class="menu-item">
+                            <span class="menu-label">平均素点：</span>
+                            <span class="menu-value">{{ item.stats.avg_score }}</span>
+                        </div>
+                        <div class="menu-item">
+                            <span class="menu-label">平均顺位：</span>
+                            <span class="menu-value">{{ item.stats.avg_rank }}</span>
+                        </div>
+                        <div class="menu-item">
+                            <span class="menu-value">
+                                <!-- 修改：遍历每个顺位数字并添加颜色类 -->
+                                {% for rank in item.stats.last_10_ranks %}
+                                    <span class="rank-num-{{ rank }}">{{ rank }}</span>{{ ' ' if not loop.last else '' }}
+                                {% endfor %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <!-- 玩家信息 -->
+                <div class="player-info">
+                    <div class="player-nickname">
+                        {{ item.user.nickname }}
+                        {% if current_filter == 'all' and item.user.school %}
+                            <span class="school-tag">{{ item.user.school }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="player-rank">
+                        <span class="dan-text dan-{{ item.user.dan }}">{{ item.user.dan }}</span>
+                        <span class="pt-text"> {{ item.user.dan_pt }}</span>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- 空数据提示 -->
+            <div class="empty-tip">暂无用户数据</div>
+            {% endfor %}
+        </div>
+
+        <!-- 返回按钮 -->
+        <a href="{{ url_for('main_index') }}" class="back-btn btn btn-primary">返回首页</a>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // 切换头像菜单显示/隐藏
+        function toggleMenu(menuId) {
+            const menu = document.getElementById(menuId);
+            // 隐藏其他菜单
+            document.querySelectorAll('.avatar-menu').forEach(el => {
+                if (el.id !== menuId) el.classList.remove('show');
+            });
+            // 切换当前菜单
+            menu.classList.toggle('show');
+        }
+
+        // 点击页面其他区域关闭菜单
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.avatar-container')) {
+                document.querySelectorAll('.avatar-menu').forEach(el => el.classList.remove('show'));
+            }
+        });
+    </script>
+</body>
+</html>
