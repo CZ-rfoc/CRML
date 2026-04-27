@@ -203,10 +203,10 @@
                             {% endfor %}
                         </td>
                         <td>
-                            <form method="POST" onsubmit="return confirm('确定删除该对局记录？')">
+                            <form action="{{ url_for('manage') }}" method="POST" class="d-inline" onsubmit="return confirm('确定删除该对局记录？')">
                                 <input type="hidden" name="action" value="del_record">
-                                <input type="hidden" name="game_time" value="{{ record.game_time }}">
-                                <button class="btn btn-sm btn-danger">删除记录</button>
+                                <input type="hidden" name="record_id" value="{{ record.progress_id }}">
+                                <button type="submit" class="btn btn-sm btn-danger">删除</button>
                             </form>
                         </td>
                     </tr>

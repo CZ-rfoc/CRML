@@ -115,7 +115,7 @@
                             <div class="list-item flex flex-start gap-2 player-item" data-user-id="{{ user.user_id }}">
                                 <label class="flex flex-start gap-2 align-items-center w-full">
                                     <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar != 'default_icon.png' else url_for('static', filename='default_icon.png') }}" alt="{{ user.nickname }}" class="avatar-sm">
-                                    <span>{{ user.nickname }} - {{ user.dan }}{{ user.dan_pt }}</span>
+                                    <span>{{ user.nickname }} - {{ user.school }}</span>
                                 </label>
                             </div>
                         {% endif %}
