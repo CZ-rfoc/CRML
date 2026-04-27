@@ -41,8 +41,7 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
         'pie_colors': [(255, 215, 0), (192, 192, 192), (205, 127, 50), (139, 69, 19)],
         'grid': (200, 220, 240),      # 更淡的蓝色格子线（接近浅蓝灰）
     }
-    
-    # ========== 获取字体（放大1/3）==========
+    # 字体文件位置，注意非windows时需要修改
     def get_font(size):
         font_paths = [
             "C:/Windows/Fonts/simhei.ttf",
@@ -57,7 +56,6 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
                     continue
         return ImageFont.load_default()
     
-    # 字体放大1/3（原28→37，24→32，18→24，14→19）
     font_title = get_font(37)
     font_large = get_font(32)
     font_medium = get_font(24)
@@ -80,14 +78,14 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
         if outline:
             draw.rectangle([x1, y1, x2, y2], outline=outline, width=1)
     
-    # 主卡片（带浅边框）
+    # 主卡片
     draw_rounded_rect(40, 40, width - 40, height - 40, colors['card'], outline=colors['border'])
     
     # ========== 在卡片内部添加格子线 ==========
     card_x1, card_y1 = 40, 40
     card_x2, card_y2 = width - 40, height - 40
     
-    # 格子大小（更大一些，45px）
+    # 格子大小，可修改
     grid_size = 45
     
     # 在卡片内部绘制淡蓝色格子线
@@ -101,9 +99,7 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
     y = 60
     draw.text((60, y), " 个人数据总览", font=font_title, fill=colors['title'])
     
-    # 昵称和段位（向左移动，从原来的右边调整到更左的位置）
-    # 原位置: width - 120 - name_width
-    # 新位置: 向右偏移量从120改为200，让名字向左移动
+    # 昵称和段位
     name_bbox = draw.textbbox((0, 0), name, font=font_title)
     name_width = name_bbox[2] - name_bbox[0]
     name_x = width - 200 - name_width  # 从120改为200，向左移动
@@ -123,18 +119,15 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
     
     if avatar:
         # 头像位置与名字左对齐，也向左移动
-        avatar_x = name_x  # 与名字左对齐
-        avatar_y = name_y + 90  # 在名字下方
-        # 圆形头像遮罩
+        avatar_x = name_x
+        avatar_y = name_y + 90
         mask = Image.new('L', (200, 200), 0)
         mask_draw = ImageDraw.Draw(mask)
         mask_draw.ellipse((0, 0, 200, 200), fill=255)
         img.paste(avatar, (avatar_x, avatar_y), mask)
     
     # ========== 3. 数据区域（位置保持不变）==========
-    y = 60  # 重置y坐标，保持原有数据区域位置不变
-    y += 60  # 头部占位
-    
+    y = 120
     data_x = 200
     stats = [
         ("总对局", f"{total_games} 局"),
@@ -144,7 +137,7 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
         ("平均PT", f"{avg_pt:.1f}"),
     ]
     for i, (label, value) in enumerate(stats):
-        draw.text((data_x - 20, y + i * 35), f"{label}：", font=font_medium, fill=colors['text'])  # 间距增加到35
+        draw.text((data_x - 20, y + i * 35), f"{label}：", font=font_medium, fill=colors['text']) 
         draw.text((data_x + 100, y + i * 35), value, font=font_medium, fill=colors['accent'])
     
     y += 150
@@ -153,10 +146,10 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
     draw.text((40, y), "   名次分布", font=font_medium, fill=colors['title'])
     y += 40
     
-    # 饼状图参数（稍微放大）
+    # 饼状图参数
     pie_x = 60
     pie_y = y
-    pie_size = 180  # 从160增加到180
+    pie_size = 180
     
     total = total_games
     counts = [rank_count.get(i, 0) for i in range(1, 5)]
@@ -174,7 +167,7 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
     # 绘制中心圆
     center_x = pie_x + pie_size // 2
     center_y = pie_y + pie_size // 2
-    inner_radius = 55  # 从50增加到55
+    inner_radius = 55
     draw.ellipse([center_x - inner_radius, center_y - inner_radius,
                   center_x + inner_radius, center_y + inner_radius], 
                  fill=colors['card'])
@@ -210,7 +203,7 @@ def generate_player_card(name, icon_path, dan, pt, avg_score, max_score,
         chart_x = 100
         chart_y = y
         chart_w = 620
-        chart_h = 160  # 从150增加到160
+        chart_h = 160
         
         # 绘制背景网格
         for i in range(5):
@@ -270,5 +263,4 @@ if __name__ == "__main__":
         rank_count=rank_count,
         last_10_rank=last_10
     )
-
     print(f"图片已保存到：{save_path}")
